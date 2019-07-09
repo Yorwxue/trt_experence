@@ -30,8 +30,13 @@ def directory_create(directory):
 input_size_h = 299
 input_size_w = 299
 pretrained_model_path = "./pretrained/inception_resnet_v2_2016_08_30.ckpt"
+# pretrained_model_path = "./pretrained/inception_v3.ckpt"
+
+# checkpoint_path = "./pretrained/checkpoint/inception_resnet_v2/"
+# checkpoint_path = "./pretrained/checkpoint/inception_v3/model.ckpt"
 
 SavedModel_export_dir = "./pretrained/SavedModel/inception_resnet_v2/"
+# SavedModel_export_dir = "./pretrained/SavedModel/inception_v3/"
 directory_create(SavedModel_export_dir)
 model_version = len(os.listdir(SavedModel_export_dir))
 
@@ -53,8 +58,17 @@ def load_image(path):
 
 
 def crop_image(image):
-    croped_img = tf.image.resize_image_with_crop_or_pad(image, input_size_h, input_size_w)
-    resized_img = tf.reshape(croped_img, (input_size_h, input_size_w, 3))
+    # croped_img = tf.image.resize_image_with_crop_or_pad(image, input_size_h, input_size_w)
+    # resized_img = tf.reshape(croped_img, (input_size_h, input_size_w, 3))
+    shape = tf.shape(image)
+    h = shape[0]
+    w = shape[1]
+    short_edge = tf.minimum(h, w)
+    yy = tf.cast(tf.math.divide(tf.math.subtract(tf.shape(img)[0], short_edge), 2), tf.int32)
+    xx = tf.cast(tf.math.divide(tf.math.subtract(tf.shape(img)[1], short_edge), 2), tf.int32)
+    crop_img = image[yy: yy + short_edge, xx: xx + short_edge]
+    resized_img = tf.image.resize_images(crop_img, (input_size_h, input_size_w))
+    resized_img = tf.reshape(resized_img, (input_size_h, input_size_w, 3))
     return resized_img
 
 
@@ -129,6 +143,7 @@ def serving_request(image_content):
 
 if __name__ == "__main__":
     # test data in github: https://github.com/zsdonghao/tensorlayer/tree/master/example/data
+    # img = load_image("data/dog/img1.jpg")
     img = cv2.imread("data/dog/img1.jpg")
     # img_str = image_encode(img)
     img_str = image_web_saved_encode(img)
@@ -144,13 +159,13 @@ if __name__ == "__main__":
 
     # inception_v3
     """
-    # network = importlib.import_module('models.inception_v3')
-    # with slim.arg_scope(inception_v3_arg_scope()):
-    #     prelogits, end_points = inception_v3(
-    #                 image_batch, is_training=False, dropout_keep_prob=1.0,
-    #                 num_classes=1001, reuse=None)
-    #
-    # probs = tf.nn.softmax(prelogits)
+    network = importlib.import_module('models.inception_v3')
+    with slim.arg_scope(inception_v3_arg_scope()):
+        prelogits, end_points = inception_v3(
+                    batch_input_tensor, is_training=False, dropout_keep_prob=1.0,
+                    num_classes=1001, reuse=None)
+
+    probs = tf.nn.softmax(prelogits, name="probs")
     # """
 
     # inception_resnet_v2
@@ -174,6 +189,7 @@ if __name__ == "__main__":
     tfconfig.gpu_options.allow_growth = True  # maybe necessary
     tfconfig.allow_soft_placement = True  # maybe necessary
     sess = tf.InteractiveSession(config=tfconfig)
+    # sess = tf.InteractiveSession()
 
     # Initialize variables
     sess.run(tf.global_variables_initializer())
@@ -181,7 +197,6 @@ if __name__ == "__main__":
 
     # model restore
     saver = tf.train.Saver()
-    # saver.restore(sess, "./pretrained/inception_v3.ckpt")
     saver.restore(sess, pretrained_model_path)
     print("Model Restored")
 
@@ -191,14 +206,13 @@ if __name__ == "__main__":
     prob = sess.run(probs, feed_dict={
         image_string_list: [img_str],
         image_shape_list: [img_shape]
-
     })
     print("End time : %.5ss" % (time.time() - start_time))
     print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
     # """
 
     # save as SavedModel
-    """
+    # """
     # tf serving configure
     # define parameters of output model
     # define output path
