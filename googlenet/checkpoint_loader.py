@@ -1,120 +1,167 @@
-import importlib
-import time
 import os
-
-import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
-slim = tf.contrib.slim
-from tensorflow.contrib.slim.python.slim.nets.inception_v3 import inception_v3_base, inception_v3, inception_v3_arg_scope
-import skimage
-import skimage.io
-import skimage.transform
-
-# -------------------------
-try:
-    from data.imagenet_classes import *
-except Exception as e:
-    raise Exception("{} / download the file from: https://github.com/zsdonghao/tensorlayer/tree/master/example/data".format(e))
+import tensorflow_datasets as tfds
 
 
 def directory_create(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-input_size_h = 299
-input_size_w = 299
-pretrained_model_path = "./pretrained/inception_resnet_v2_2016_08_30.ckpt"
-# pretrained_model_path = "./pretrained/inception_v3.ckpt"
 
-checkpoint_path = "./pretrained/checkpoint/inception_resnet_v2/"
-# checkpoint_path = "./pretrained/checkpoint/inception_v3/model.ckpt"
-directory_create(checkpoint_path)
+def format_example(image, label):
+  image = tf.cast(image, tf.float32)
+  image = (image/127.5) - 1
+  image = tf.image.resize(image, (IMG_SIZE, IMG_SIZE))
+  return image, label
 
 
-def load_image(path):
-    # load image
-    img = skimage.io.imread(path)
-    img = img / 255.0
-    assert (0 <= img).all() and (img <= 1.0).all()
-    # print "Original Image Shape: ", img.shape
-    # we crop image from center
-    short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
-    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
-    # resize to 299, 299
-    resized_img = skimage.transform.resize(crop_img, (input_size_h, input_size_w))
-    return resized_img
+saved_model_path = os.path.abspath("./weights/SaveModel")
+print(saved_model_path)
+directory_create(saved_model_path)
 
-
-def print_prob(prob):
-    synset = class_names
-    # print prob
-    pred = np.argsort(prob)[::-1]
-    # Get top1 label
-    top1 = synset[pred[0]]
-    print("Top1: ", top1, prob[pred[0]])
-    # Get top5 label
-    top5 = [(synset[pred[i]], prob[pred[i]]) for i in range(5)]
-    print("Top5: ", top5)
-    return top1
+# Add the following two command to avoid cuDNN failed to initialize
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 if __name__ == "__main__":
-    # test data in github: https://github.com/zsdonghao/tensorlayer/tree/master/example/data
-    img1 = load_image("data/dog/img1.jpg")
-    img1 = img1.reshape((1, 299, 299, 3))
+    tfds.disable_progress_bar()
 
-    image_batch = tf.placeholder(tf.float32, shape=(None, 299, 299, 3), name="image_batch")
+    SPLIT_WEIGHTS = (8, 1, 1)
+    splits = tfds.Split.TRAIN.subsplit(weighted=SPLIT_WEIGHTS)
 
-    # inception_v3
-    """
-    network = importlib.import_module('models.inception_v3')
-    with slim.arg_scope(inception_v3_arg_scope()):
-        prelogits, end_points = inception_v3(
-                    image_batch, is_training=False, dropout_keep_prob=1.0,
-                    num_classes=1001, reuse=None)
+    # downloads and caches the data
+    (raw_train, raw_validation, raw_test), metadata = tfds.load(
+        'cats_vs_dogs', split=list(splits),
+        with_info=True, as_supervised=True)
 
-    probs = tf.nn.softmax(prelogits, name="probs")
-    # """
+    print(raw_train)
+    print(raw_validation)
+    print(raw_test)
 
-    # inception_resnet_v2
-    # """
-    network = importlib.import_module('models.inception_resnet_v2')
-    scope = network.inception_resnet_v2_arg_scope(
-                weight_decay=0.0,
-                batch_norm_decay=0.995,
-                batch_norm_epsilon=0.001,
-                activation_fn=tf.nn.relu
-            )
-    with slim.arg_scope(scope):
-        prelogits, _ = network.inception_resnet_v2(
-            image_batch, is_training=False, dropout_keep_prob=1.0,
-            num_classes=1001, reuse=None)
+    # Show the first two images and labels from the training set:
+    get_label_name = metadata.features['label'].int2str
 
-    probs = tf.nn.softmax(prelogits, name="probs")
-    # """
+    for image, label in raw_train.take(2):
+        plt.figure()
+        plt.imshow(image)
+        plt.title(get_label_name(label))
 
-    sess = tf.InteractiveSession()
+    # Resize the images to a fixes input size, and rescale the input channels to a range of [-1,1]
+    IMG_SIZE = 160  # All images will be resized to 160x160
+    train = raw_train.map(format_example)
+    validation = raw_validation.map(format_example)
+    test = raw_test.map(format_example)
 
-    # Initialize variables
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
+    # shuffle and batch the data.
+    BATCH_SIZE = 32
+    SHUFFLE_BUFFER_SIZE = 1000
+    train_batches = train.shuffle(SHUFFLE_BUFFER_SIZE).batch(BATCH_SIZE)
+    validation_batches = validation.batch(BATCH_SIZE)
+    test_batches = test.batch(BATCH_SIZE)
 
-    # model restore
-    saver = tf.train.Saver()
-    saver.restore(sess, pretrained_model_path)
-    print("Model Restored")
+    # Inspect a batch of data:
+    for image_batch, label_batch in train_batches.take(1):
+        pass
+    print("image_batch.shape: ", image_batch.shape)
 
-    # forward pass
-    start_time = time.time()
-    prob = sess.run(probs, feed_dict={image_batch: img1})
-    print("End time : %.5ss" % (time.time() - start_time))
-    print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
+    # Create the base model from the pre-trained convnets
+    IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 
-    # save as checkpoint
-    # """
-    saver = tf.train.Saver()
-    saver.save(sess, checkpoint_path)
-    print("done")
-    # """
+    # Create the base model from the pre-trained model MobileNet V2
+    base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
+                                                   include_top=False,
+                                                   weights='imagenet')
+
+    # feature extractor
+    feature_batch = base_model(image_batch)
+    print("feature_batch.shape: ", feature_batch.shape)
+
+    # Freeze the convolutional base
+    base_model.trainable = False
+
+    # show architecture of the base model
+    base_model.summary()
+
+    # Add a classification head
+    global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
+    feature_batch_average = global_average_layer(feature_batch)
+    print("feature_batch_average.shape", feature_batch_average.shape)
+
+    #  convert these features into a single prediction per image
+    prediction_layer = tf.keras.layers.Dense(1)
+    prediction_batch = prediction_layer(feature_batch_average)
+    print("prediction_batch.shape", prediction_batch.shape)
+
+    # stack the feature extracto
+    model = tf.keras.Sequential([
+        base_model,
+        global_average_layer,
+        prediction_layer
+    ])
+
+    # compile model
+    base_learning_rate = 0.0001
+    model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=base_learning_rate),
+                  loss='binary_crossentropy',
+                  metrics=['accuracy'])
+    model.summary()
+
+    print("trainable variables: ", len(model.trainable_variables))
+
+    # train
+    num_train, num_val, num_test = (
+        metadata.splits['train'].num_examples*weight/10
+        for weight in SPLIT_WEIGHTS
+    )
+    initial_epochs = 10
+    steps_per_epoch = round(num_train)//BATCH_SIZE
+    validation_steps = 20
+
+    loss0, accuracy0 = model.evaluate(validation_batches, steps=validation_steps)
+
+    print("initial loss: {:.2f}".format(loss0))
+    print("initial accuracy: {:.2f}".format(accuracy0))
+
+    history = model.fit(train_batches,
+                        epochs=initial_epochs,
+                        validation_data=validation_batches)
+    predictions = model.predict(test_batches)
+
+    # Learning curves
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(2, 1, 1)
+    plt.plot(acc, label='Training Accuracy')
+    plt.plot(val_acc, label='Validation Accuracy')
+    plt.legend(loc='lower right')
+    plt.ylabel('Accuracy')
+    plt.ylim([min(plt.ylim()), 1])
+    plt.title('Training and Validation Accuracy')
+
+    plt.subplot(2, 1, 2)
+    plt.plot(loss, label='Training Loss')
+    plt.plot(val_loss, label='Validation Loss')
+    plt.legend(loc='upper right')
+    plt.ylabel('Cross Entropy')
+    plt.ylim([0, 1.0])
+    plt.title('Training and Validation Loss')
+    plt.xlabel('epoch')
+    plt.show()
+
+
+    # Export the model to a SavedModel
+    tf.keras.experimental.export_saved_model(model, saved_model_path)
+
+    # Recreate the exact same model
+    # new_model = tf.keras.experimental.load_from_saved_model(saved_model_path)
+
+    # Check that the state is preserved
+    # new_predictions = new_model.predict(test_batches)
+    # np.testing.assert_allclose(predictions, new_predictions, atol=1e-6)
