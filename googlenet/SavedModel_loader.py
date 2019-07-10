@@ -259,7 +259,7 @@ if __name__ == "__main__":
     tfconfig.allow_soft_placement = True  # maybe necessary
     with tf.Session(graph=tf.Graph(), config=tfconfig) as sess:
         tf.saved_model.loader.load(sess, [tf.saved_model.SERVING],
-                                   os.path.join(SavedModel_export_dir, max(os.listdir(SavedModel_export_dir))))
+                                   os.path.join(SavedModel_export_dir, str(len(os.listdir(SavedModel_export_dir)))))
         prob = sess.run("probs:0", {
             "image_strings:0": [img_str],
             "image_shapes:0": [img_shape]
