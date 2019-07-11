@@ -8,15 +8,15 @@ class cnn_model(object):
         self._build_model()
         self.labels = None
 
-    def build_training_graph(self, labels):
-        self.labels = labels
+    def build_graph(self, label_place_holder):
+        self.labels = label_place_holder
         self._build_train_op()
         return
 
     def _build_model(self):
         with tf.variable_scope('cnn'):
             with tf.variable_scope('unit-1'):
-                x = self._conv2d(self.inputs, name='cnn-1', filter_size=3, in_channels=3, out_channels=63, strides=1)
+                x = self._conv2d(self.inputs, name='cnn-1', filter_size=3, in_channels=3, out_channels=64, strides=1)
                 x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
@@ -26,7 +26,7 @@ class cnn_model(object):
                 x = self._max_pool(x, 2, strides=2)
 
             with tf.variable_scope('unit-3'):
-                x = self._conv2d(x, name='cnn-3', filter_size=3, in_channels=64, out_channels=128, strides=1)
+                x = self._conv2d(x, name='cnn-3', filter_size=3, in_channels=128, out_channels=128, strides=1)
                 x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
@@ -38,27 +38,12 @@ class cnn_model(object):
         with tf.variable_scope('fc'):
             # [batch_size, max_stepsize, num_features]
             batch_size, height, width, channels = x.get_shape().as_list()
-            x = tf.transpose(x, [0, 2, 1, 3])
-            x = tf.reshape(x, [-1, width, height * channels])
+            x = tf.reshape(x, [-1,  height * width *channels])
 
-            outputs = x
-            outputs = tf.reshape(outputs, [-1, 64])
+            outputs = self._fc(x, input_shape=height * width *channels, output_shape=64, name="fc-1")
+            outputs = self._fc(outputs, input_shape=64, output_shape=self.num_classes, name="fc-2")
 
-            W = tf.get_variable(name='w',
-                                shape=[64, self.num_classes],
-                                dtype=tf.float32,
-                                initializer=tf.contrib.layers.xavier_initializer())
-            b = tf.get_variable(name='b',
-                                shape=[self.num_classes],
-                                dtype=tf.float32,
-                                initializer=tf.constant_initializer())
-
-            self.logits = tf.matmul(outputs, W) + b
-            # Reshaping back to the original shape
-            shape = tf.shape(x)
-            self.logits = tf.reshape(self.logits, [shape[0], -1, self.num_classes])
-            # Time major
-            self.logits = tf.transpose(self.logits, (1, 0, 2))
+        self.logits = tf.identity(outputs, name="logits")
 
     def _build_train_op(self):
         self.global_step = tf.Variable(0, trainable=False)
@@ -74,6 +59,13 @@ class cnn_model(object):
         )
         train_ops = [self.optimizer]
         self.train_op = tf.group(*train_ops)
+
+        self.cost = tf.reduce_mean(self.loss)
+        self.acc, self.acc_op = tf.metrics.accuracy(
+            tf.argmax(self.labels, 1),
+            tf.argmax(self.logits, 1),
+            name="metrics"
+        )
 
     def _conv2d(self, x, name, filter_size, in_channels, out_channels, strides):
         with tf.variable_scope(name):
@@ -100,3 +92,16 @@ class cnn_model(object):
                               strides=[1, strides, strides, 1],
                               padding='SAME',
                               name='max_pool')
+
+    def _fc(self, x, input_shape, output_shape, name):
+        with tf.variable_scope(name):
+            W = tf.get_variable(name='w',
+                                shape=[input_shape, output_shape],
+                                dtype=tf.float32,
+                                initializer=tf.contrib.layers.xavier_initializer())
+            b = tf.get_variable(name='b',
+                                shape=[output_shape],
+                                dtype=tf.float32,
+                                initializer=tf.constant_initializer())
+
+        return tf.matmul(x, W) + b

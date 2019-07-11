@@ -1,61 +1,53 @@
-# Import TensorFlow and TensorRT
 import os
+import time
+import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.tensorrt as trt
-import skimage
-import skimage.io
-import skimage.transform
+from tensorflow.examples.tutorials.mnist import input_data
+
+from googlenet.SavedModel_loader import image_web_saved_encode
 
 
-def load_image(path):
-    # load image
-    img = skimage.io.imread(path)
-    img = img / 255.0
-    assert (0 <= img).all() and (img <= 1.0).all()
-    # print "Original Image Shape: ", img.shape
-    # we crop image from center
-    short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
-    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
-    # resize to 299, 299
-    resized_img = skimage.transform.resize(crop_img, (input_size_h, input_size_w))
-    return resized_img
+def directory_create(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
-# image size for google-net
-input_size_h = 299
-input_size_w = 299
-
-# test data in github: https://github.com/zsdonghao/tensorlayer/tree/master/example/data
-img1 = load_image("data/dog/img1.jpg")
-img1 = img1.reshape((1, input_size_h, input_size_w, 3))
-
-SavedModel_dir = "./pretrained/SavedModel/inception_resnet_v2/"
-# SavedModel_dir = "./pretrained/SavedModel/inception_v3/"
+summaries_dir = "./trt_model/cnn_model/tensorboard/"
+directory_create(summaries_dir)
+SavedModel_dir = "./SavedModel/cnn_model/"
+SavedModel_path = os.path.join(SavedModel_dir, str(len(os.listdir(SavedModel_dir))))
 model_tag = "serve"  # can be queried by saved_model_cli
-SavedModel_path = os.path.join(
-    SavedModel_dir,
-    max(os.listdir(SavedModel_dir))
-)
-print("model path: ", SavedModel_path)
-trt_model_dir = "./pretrained/trt/inception_resnet_v2/"
-# trt_model_dir = "./pretrained/trt/inception_v3/"
-
-frozen_model_dir = "./pretrained/frozen_model/inception_resnet_v2/"
-
-batch_size = 2
+batch_size = 10
 max_GPU_mem_size_for_TRT = 2 << 20
+trt_model_dir = "./trt_model/cnn_model/"
+trt_model_dir = os.path.join(trt_model_dir, str(len(os.listdir(trt_model_dir))))
+
+# preparing dataset
+# """
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+x_train = mnist.train.images
+y_train = mnist.train.labels
+x_test = mnist.test.images
+y_test = mnist.test.labels
+
+# reshape from 784 to 28*28
+# x_train = np.reshape(x_train, [x_train.shape[0], 28, 28, 1])
+x_test = np.reshape(x_test, [x_test.shape[0], 28, 28, 1])
+
+# base64 encode
+# x_train = [image_web_saved_encode(np.concatenate([image, image, image], axis=2)*255) for image in list(x_train)]
+x_test = [image_web_saved_encode(np.concatenate([image, image, image], axis=2) * 255) for image in list(x_test)]
+# """
 
 # Inference with TF-TRT `SavedModel` workflow:
 # """
 graph = tf.Graph()
 with graph.as_default():
-    # tfconfig = tf.ConfigProto()
-    # tfconfig.gpu_options.allow_growth = True  # maybe necessary
-    # tfconfig.allow_soft_placement = True  # maybe necessary
-    # with tf.Session(config=tfconfig) as sess:
-    with tf.Session() as sess:
+    tfconfig = tf.ConfigProto()
+    tfconfig.gpu_options.allow_growth = True  # maybe necessary
+    tfconfig.allow_soft_placement = True  # maybe necessary
+    with tf.Session(config=tfconfig) as sess:
         # Create a TensorRT inference graph from a SavedModel:
         trt_graph = trt.create_inference_graph(
             input_graph_def=None,
@@ -65,14 +57,28 @@ with graph.as_default():
             max_batch_size=batch_size,
             max_workspace_size_bytes=max_GPU_mem_size_for_TRT,
             precision_mode="FP32",
-            output_saved_model_dir=trt_model_dir
+            # The following command will create a directory automatically,
+            # and you must notice that "output_saved_model_dir" need to specific a path without point to any directory
+            output_saved_model_dir=None  # trt_model_dir
         )
         # Import the TensorRT graph into a new graph and run:
         output_node = tf.import_graph_def(
             trt_graph,
-            return_elements=["probs:0"]
+            return_elements=["logits:0"]
         )
-        sess.run(output_node)
+        START_TIME = time.time()
+        prob = sess.run(output_node, feed_dict={
+            "import/image_strings:0": [x_test[0]]*batch_size,
+            "import/image_shapes:0": [(28, 28, 3)]*batch_size
+        })
+        print("spent %f seconds" % (time.time() - START_TIME))
+
+        test_idx = 0
+        print("label: %d, prediction: %d" % (np.argmax(y_test[test_idx]), np.argmax(prob[0])))
+
+        # write graph
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(summaries_dir, trt_graph)
 # """
 
 # Inference with TF-TRT frozen graph workflow:
