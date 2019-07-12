@@ -32,11 +32,11 @@ input_size_w = 299
 pretrained_model_path = "./pretrained/inception_resnet_v2_2016_08_30.ckpt"
 # pretrained_model_path = "./pretrained/inception_v3.ckpt"
 
-# checkpoint_path = "./pretrained/checkpoint/inception_resnet_v2/"
-# checkpoint_path = "./pretrained/checkpoint/inception_v3/model.ckpt"
+# checkpoint_path = "./checkpoint/inception_resnet_v2/"
+# checkpoint_path = "./checkpoint/inception_v3/model.ckpt"
 
-SavedModel_export_dir = "./pretrained/SavedModel/inception_resnet_v2/"
-# SavedModel_export_dir = "./pretrained/SavedModel/inception_v3/"
+SavedModel_export_dir = "./SavedModel/inception_resnet_v2/"
+# SavedModel_export_dir = "./SavedModel/inception_v3/"
 directory_create(SavedModel_export_dir)
 model_version = len(os.listdir(SavedModel_export_dir))
 
@@ -259,10 +259,12 @@ if __name__ == "__main__":
     tfconfig.allow_soft_placement = True  # maybe necessary
     with tf.Session(graph=tf.Graph(), config=tfconfig) as sess:
         tf.saved_model.loader.load(sess, [tf.saved_model.SERVING],
-                                   os.path.join(SavedModel_export_dir, str(len(os.listdir(SavedModel_export_dir)))))
+                                   os.path.join(SavedModel_export_dir, str(len(os.listdir(SavedModel_export_dir))-1)))
+        START_TIME = time.time()
         prob = sess.run("probs:0", {
             "image_strings:0": [img_str],
             "image_shapes:0": [img_shape]
         })
+        print("spent %f seconds" % (time.time()-START_TIME))
         print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
     # """

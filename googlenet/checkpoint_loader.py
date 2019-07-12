@@ -26,7 +26,7 @@ input_size_w = 299
 pretrained_model_path = "./pretrained/inception_resnet_v2_2016_08_30.ckpt"
 # pretrained_model_path = "./pretrained/inception_v3.ckpt"
 
-checkpoint_path = "./pretrained/checkpoint/inception_resnet_v2/"
+checkpoint_path = "./checkpoint/inception_resnet_v2/"
 # checkpoint_path = "./pretrained/checkpoint/inception_v3/model.ckpt"
 directory_create(checkpoint_path)
 

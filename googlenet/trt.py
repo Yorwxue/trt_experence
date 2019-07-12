@@ -8,6 +8,34 @@ import skimage.io
 import skimage.transform
 import cv2
 import pybase64 as base64
+import time
+import numpy as np
+
+
+# -------------------------
+try:
+    from data.imagenet_classes import *
+except Exception as e:
+    raise Exception(
+        "{} / download the file from: https://github.com/zsdonghao/tensorlayer/tree/master/example/data".format(e))
+
+
+def directory_create(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
+def print_prob(prob):
+    synset = class_names
+    # print prob
+    pred = np.argsort(prob)[::-1]
+    # Get top1 label
+    top1 = synset[pred[0]]
+    print("Top1: ", top1, prob[pred[0]])
+    # Get top5 label
+    top5 = [(synset[pred[i]], prob[pred[i]]) for i in range(5)]
+    print("Top5: ", top5)
+    return top1
 
 
 def load_image(path):
@@ -41,7 +69,7 @@ input_size_w = 299
 img1 = load_image("data/dog/img1.jpg")
 img1 = img1.reshape((1, input_size_h, input_size_w, 3))
 
-SavedModel_dir = "./pretrained/SavedModel/inception_resnet_v2/"
+SavedModel_dir = "./SavedModel/inception_resnet_v2/"
 model_tag = "serve"  # can be queried by saved_model_cli
 SavedModel_path = os.path.join(
     SavedModel_dir,
@@ -49,23 +77,23 @@ SavedModel_path = os.path.join(
 )
 print("model path: ", SavedModel_path)
 
-trt_model_dir = "./pretrained/trt/inception_resnet_v2/"
+trt_model_dir = "./trt_model/inception_resnet_v2/"
+directory_create(trt_model_dir)
 trt_model_dir = os.path.join(trt_model_dir, str(len(os.listdir(trt_model_dir))))
 
 # frozen_model_dir = "./pretrained/frozen_model/inception_resnet_v2/"
 
 batch_size = 2
-max_GPU_mem_size_for_TRT = 2 << 20
+max_GPU_mem_size_for_TRT = 4 * (2 << 30)
 
 # Inference with TF-TRT `SavedModel` workflow:
 # """
 graph = tf.Graph()
 with graph.as_default():
-    # tfconfig = tf.ConfigProto()
-    # tfconfig.gpu_options.allow_growth = True  # maybe necessary
-    # tfconfig.allow_soft_placement = True  # maybe necessary
-    # with tf.Session(config=tfconfig) as sess:
-    with tf.Session() as sess:
+    tfconfig = tf.ConfigProto()
+    tfconfig.gpu_options.allow_growth = True  # maybe necessary
+    tfconfig.allow_soft_placement = True  # maybe necessary
+    with tf.Session(config=tfconfig) as sess:
         # Create a TensorRT inference graph from a SavedModel:
         trt_graph = trt.create_inference_graph(
             input_graph_def=None,
@@ -75,7 +103,7 @@ with graph.as_default():
             max_batch_size=batch_size,
             max_workspace_size_bytes=max_GPU_mem_size_for_TRT,
             precision_mode="FP32",
-            output_saved_model_dir=trt_model_dir
+            output_saved_model_dir=None  # trt_model_dir
         )
         # Import the TensorRT graph into a new graph and run:
         output_node = tf.import_graph_def(
@@ -93,10 +121,13 @@ with graph.as_default():
         img = cv2.imread("data/dog/img1.jpg")
         img_str = image_web_saved_encode(img)
         img_shape = img.shape
-        sess.run(output_node, feed_dict={
-            "image_strings:0": [img_str],
-            "image_shapes:0": [img_shape]
+        START_TIME = time.time()
+        prob = sess.run("import/probs:0", feed_dict={
+            "import/image_strings:0": [img_str],
+            "import/image_shapes:0": [img_shape]
         })
+        print("spent %f seconds" % (time.time() - START_TIME))
+        print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
 # """
 
 # Inference with TF-TRT frozen graph workflow:
@@ -121,8 +152,8 @@ with graph.as_default():
         output_node = tf.import_graph_def(
             trt_graph,
             return_elements=["probs:0"])
-        sess.run(output_node, feed_dict={
-            "image_batch:0": img1
+        sess.run("import/probs:0", feed_dict={
+            "import/image_batch:0": img1
         })
 # """
 
