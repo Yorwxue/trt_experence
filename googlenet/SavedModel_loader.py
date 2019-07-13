@@ -35,8 +35,8 @@ def serving_image_decode(image_input):
     image_string = tf.decode_base64(image_string)  # tf-serving will do this automatically
     decoded_image = tf.image.decode_jpeg(image_string, dct_method='INTEGER_ACCURATE')
 
-    reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
-    reshape_input_tensor = tf.reshape(reshape_input_tensor, (input_height, input_width, 3))
+    # reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
+    reshape_input_tensor = tf.reshape(decoded_image, (input_height, input_width, 3))
 
     # rgb to bgr
     bgr_input_tensor = tf.reverse(reshape_input_tensor, axis=[-1])
@@ -188,13 +188,22 @@ if __name__ == "__main__":
     tfconfig = tf.ConfigProto()
     tfconfig.gpu_options.allow_growth = True  # maybe necessary
     tfconfig.allow_soft_placement = True  # maybe necessary
+    # tfconfig.gpu_options.per_process_gpu_memory_fraction = 0.3
     with tf.Session(graph=tf.Graph(), config=tfconfig) as sess:
         tf.saved_model.loader.load(sess, [tf.saved_model.SERVING],
                                    os.path.join(SavedModel_export_dir,  str(len(os.listdir(SavedModel_export_dir)))))
+        # warm up
+        print("warm up")
+        for i in range(5):
+            prob = sess.run("logits:0", {
+                "image_strings:0": [x_test[test_idx]],
+                "image_shapes:0": [(28, 28, 3)]
+            })
+        print("counter start")
         START_TIME = time.time()
         prob = sess.run("logits:0", {
-            "image_strings:0": [x_test[test_idx]]*10,
-            "image_shapes:0": [(28, 28, 3)]*10
+            "image_strings:0": [x_test[test_idx]],
+            "image_shapes:0": [(28, 28, 3)]
         })
         print("label: %d, prediction: %d" % (np.argmax(y_test[test_idx]), np.argmax(prob[0])))
         print("spent %f seconds" % (time.time()-START_TIME))

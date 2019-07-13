@@ -17,22 +17,22 @@ class cnn_model(object):
         with tf.variable_scope('cnn'):
             with tf.variable_scope('unit-1'):
                 x = self._conv2d(self.inputs, name='cnn-1', filter_size=3, in_channels=3, out_channels=64, strides=1)
-                x = self._leaky_relu(x, 0.01)
+                # x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
             with tf.variable_scope('unit-2'):
                 x = self._conv2d(x, name='cnn-2', filter_size=3, in_channels=64, out_channels=128, strides=1)
-                x = self._leaky_relu(x, 0.01)
+                # x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
             with tf.variable_scope('unit-3'):
                 x = self._conv2d(x, name='cnn-3', filter_size=3, in_channels=128, out_channels=128, strides=1)
-                x = self._leaky_relu(x, 0.01)
+                # x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
             with tf.variable_scope('unit-4'):
                 x = self._conv2d(x, name='cnn-4', filter_size=3, in_channels=128, out_channels=256, strides=1)
-                x = self._leaky_relu(x, 0.01)
+                # x = self._leaky_relu(x, 0.01)
                 x = self._max_pool(x, 2, strides=2)
 
         with tf.variable_scope('fc'):

@@ -18,7 +18,7 @@ directory_create(summaries_dir)
 SavedModel_dir = "./SavedModel/cnn_model/"
 SavedModel_path = os.path.join(SavedModel_dir, str(len(os.listdir(SavedModel_dir))))
 model_tag = "serve"  # can be queried by saved_model_cli
-batch_size = 10
+batch_size = 1
 max_GPU_mem_size_for_TRT = 2 << 20
 trt_model_dir = "./trt_model/cnn_model/"
 trt_model_dir = os.path.join(trt_model_dir, str(len(os.listdir(trt_model_dir))))
@@ -52,11 +52,13 @@ with graph.as_default():
         trt_graph = trt.create_inference_graph(
             input_graph_def=None,
             outputs=None,
+            # is_dynamic_op=True,
             input_saved_model_dir=SavedModel_path,
             input_saved_model_tags=[model_tag],
             max_batch_size=batch_size,
             max_workspace_size_bytes=max_GPU_mem_size_for_TRT,
             precision_mode="FP32",
+            # use_calibration=False,  # set False when using INT8
             # The following command will create a directory automatically,
             # and you must notice that "output_saved_model_dir" need to specific a path without point to any directory
             output_saved_model_dir=None  # trt_model_dir
@@ -66,10 +68,23 @@ with graph.as_default():
             trt_graph,
             return_elements=["logits:0"]
         )
+
+        trt_engine_ops = [n.name for n in trt_graph.node if str(n.op) == 'TRTEngineOp']
+        print("Number of trt op: %d" % len(trt_engine_ops))
+        print(trt_engine_ops)
+
+        # warm up
+        print("warm up")
+        for i in range(5):
+            prob = sess.run(output_node, {
+                "import/image_strings:0": [x_test[0]] * batch_size,
+                "import/image_shapes:0": [(28, 28, 3)] * batch_size
+            })
+        print("counter start")
         START_TIME = time.time()
         prob = sess.run(output_node, feed_dict={
-            "import/image_strings:0": [x_test[0]]*batch_size,
-            "import/image_shapes:0": [(28, 28, 3)]*batch_size
+            "import/image_strings:0": [x_test[0]] * batch_size,
+            "import/image_shapes:0": [(28, 28, 3)] * batch_size
         })
         print("spent %f seconds" % (time.time() - START_TIME))
 
