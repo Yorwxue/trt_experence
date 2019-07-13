@@ -6,8 +6,6 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.tools import freeze_graph
 
-from googlenet.checkpoint_to_SavedModel import image_web_saved_encode
-
 
 def directory_create(directory):
     if not os.path.exists(directory):
@@ -16,6 +14,7 @@ def directory_create(directory):
 
 SavedModel_dir = "./SavedModel/cnn_model/"
 SavedModel_path = os.path.join(SavedModel_dir, str(len(os.listdir(SavedModel_dir))-2))
+print("SavedModel path: %s" % SavedModel_path)
 
 summaries_dir = "./frozen_model/cnn_model/tensorboard/"
 directory_create(summaries_dir)
@@ -39,7 +38,10 @@ x_test = np.reshape(x_test, [x_test.shape[0], 28, 28, 1])
 
 # base64 encode
 # x_train = [image_web_saved_encode(np.concatenate([image, image, image], axis=2)*255) for image in list(x_train)]
-x_test = [image_web_saved_encode(np.concatenate([image, image, image], axis=2) * 255) for image in list(x_test)]
+# x_test = [image_web_saved_encode(np.concatenate([image, image, image], axis=2) * 255) for image in list(x_test)]
+
+# fill 3 channels with copy
+x_test = [np.concatenate([image, image, image], axis=2) for image in list(x_test)]
 # """
 
 # Inference with TF-TRT `SavedModel` workflow:
@@ -93,14 +95,16 @@ with tf.Graph().as_default() as graph:
         print("warm up")
         for i in range(5):
             prob = sess.run("prefix/logits:0", {
-                "prefix/image_strings:0": [x_test[0]] * batch_size,
-                "prefix/image_shapes:0": [(28, 28, 3)] * batch_size
+                "prefix/image_batch:0": [x_test[0]] * batch_size,
+                # "prefix/image_strings:0": [x_test[0]] * batch_size,
+                # "prefix/image_shapes:0": [(28, 28, 3)] * batch_size
             })
         print("counter start")
         START_TIME = time.time()
         prob = sess.run("prefix/logits:0", feed_dict={
-            "prefix/image_strings:0": [x_test[0]] * batch_size,
-            "prefix/image_shapes:0": [(28, 28, 3)] * batch_size
+            "prefix/image_batch:0": [x_test[0]] * batch_size,
+            # "prefix/image_strings:0": [x_test[0]] * batch_size,
+            # "prefix/image_shapes:0": [(28, 28, 3)] * batch_size
         })
         print("spent %f seconds" % (time.time() - START_TIME))
         print("label: %d, prediction: %d" % (np.argmax(y_test[0]), np.argmax(prob[0])))

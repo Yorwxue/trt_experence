@@ -64,3 +64,21 @@ train_writer = tf.summary.FileWriter(summaries_dir,trt_graph)
 ```
 
 ## Using tensorflow-onnx
++ Note that tf2onnx can only convert frozen graph to onnx
++ tensorflow op DecodeBase64 is not supported, more detail of supported op can be found [here](https://github.com/onnx/onnx/blob/master/docs/Operators.md)
++ An example of code of convert tf to onnx is list as following, you can check the official document [here](https://github.com/onnx/tensorflow-onnx#creating-custom-op-mappings-from-python)
+```python 
+onnx_graph = tf2onnx.tfonnx.process_tf_graph(sess.graph,
+                                             input_names=[
+                                                 "prefix/image_batch:0",
+                                             ],
+                                             output_names=["prefix/logits:0"])
+model_proto = onnx_graph.make_model("test")
+with open(onnx_export_path, "wb") as f:
+    f.write(model_proto.SerializeToString())
+    print("model saved at %s" % onnx_export_path)
+```
+
+## Convert onnx back to tensorflow
++ TODO
++ More detail can be found [here](https://github.com/onnx/onnx-tensorflow)

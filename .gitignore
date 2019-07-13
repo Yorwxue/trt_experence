@@ -9,4 +9,5 @@ venv/
 *SavedModel/
 *trt_model/
 *frozen_model/
+*onnx_model/
 
