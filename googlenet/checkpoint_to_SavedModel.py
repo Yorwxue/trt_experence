@@ -36,8 +36,8 @@ def serving_image_decode(image_input):
     image_string = tf.decode_base64(image_string)  # tf-serving will do this automatically
     decoded_image = tf.image.decode_jpeg(image_string, dct_method='INTEGER_ACCURATE')
 
-    # reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
-    reshape_input_tensor = tf.reshape(decoded_image, (input_height, input_width, 3))
+    reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
+    reshape_input_tensor = tf.reshape(reshape_input_tensor, (input_height, input_width, 3))
 
     # rgb to bgr
     bgr_input_tensor = tf.reverse(reshape_input_tensor, axis=[-1])

@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow.contrib.tensorrt as trt
 from tensorflow.examples.tutorials.mnist import input_data
 
-from googlenet.SavedModel_loader import image_web_saved_encode
+from googlenet.checkpoint_to_SavedModel import image_web_saved_encode
 
 
 def directory_create(directory):
