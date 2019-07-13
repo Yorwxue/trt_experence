@@ -1,3 +1,4 @@
+# from SavedModel to trt graph
 import os
 import time
 import numpy as np
@@ -13,15 +14,17 @@ def directory_create(directory):
         os.makedirs(directory)
 
 
+SavedModel_dir = "./SavedModel/cnn_model/"
+SavedModel_path = os.path.join(SavedModel_dir, str(len(os.listdir(SavedModel_dir))-2))
+model_tag = "serve"  # can be queried by saved_model_cli
+
 summaries_dir = "./trt_model/cnn_model/tensorboard/"
 directory_create(summaries_dir)
-SavedModel_dir = "./SavedModel/cnn_model/"
-SavedModel_path = os.path.join(SavedModel_dir, str(len(os.listdir(SavedModel_dir))))
-model_tag = "serve"  # can be queried by saved_model_cli
+trt_export_model_dir = "./trt_model/cnn_model/"
+trt_export_model_dir = os.path.join(trt_export_model_dir, str(len(os.listdir(trt_export_model_dir))-1))
+
 batch_size = 1
 max_GPU_mem_size_for_TRT = 2 << 20
-trt_model_dir = "./trt_model/cnn_model/"
-trt_model_dir = os.path.join(trt_model_dir, str(len(os.listdir(trt_model_dir))))
 
 # preparing dataset
 # """
@@ -61,7 +64,7 @@ with graph.as_default():
             # use_calibration=False,  # set False when using INT8
             # The following command will create a directory automatically,
             # and you must notice that "output_saved_model_dir" need to specific a path without point to any directory
-            output_saved_model_dir=None  # trt_model_dir
+            output_saved_model_dir=trt_export_model_dir
         )
         # Import the TensorRT graph into a new graph and run:
         output_node = tf.import_graph_def(

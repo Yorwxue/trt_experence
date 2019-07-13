@@ -16,10 +16,11 @@ def directory_create(directory):
 if __name__ == "__main__":
     weights_dir = os.path.abspath("./weights/cnn_model")
     directory_create(weights_dir)
-    model_name = "cnn_model"
+    model_name = "model"
 
     checkpoint_dir = os.path.abspath("./checkpoint/cnn_model")
     directory_create(checkpoint_dir)
+    checkpoint_path = os.path.join(checkpoint_dir, model_name)
 
     # preparing dataset
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
@@ -42,7 +43,7 @@ if __name__ == "__main__":
     model = cnn_model(image_batch, 10)
 
     # train
-    TRAIN = False
+    TRAIN = True
     if TRAIN:
         num_epochs = 10
         batch_size = 100
@@ -106,13 +107,20 @@ if __name__ == "__main__":
 
                         # train_err /= num_train_samples
                         now = datetime.datetime.now()
-                        log = "{}/{} {}:{}:{} Epoch {}/{}, " \
+                        log = "Epoch {}/{}, " \
                               "accuracy = {:.5f},train_cost = {:.5f}, " \
                               ", time = {:.3f}"
-                        print(log.format(now.month, now.day, now.hour, now.minute, now.second,
-                                         cur_epoch + 1, num_epochs, accuracy, batch_loss,
+                        print(log.format(cur_epoch + 1, num_epochs, accuracy, batch_loss,
                                          time.time() - start_time))
 
+            # save as checkpoint
+            checkpoint = True
+            if checkpoint:
+                saver = tf.train.Saver()
+                saver.save(sess, checkpoint_path)
+                print("Ckeckpoint Saved at: %s" % checkpoint_dir)
+
+    print("Start Evaluate")
     tfconfig = tf.ConfigProto()
     tfconfig.gpu_options.allow_growth = True  # maybe necessary
     tfconfig.allow_soft_placement = True  # maybe necessary
@@ -128,9 +136,10 @@ if __name__ == "__main__":
         sess.run(running_vars_initializer)
 
         # model restore
-        ckpt = tf.train.get_checkpoint_state(weights_dir)
         saver = tf.train.Saver()
-        saver.restore(sess, ckpt.model_checkpoint_path)
+        # ckpt = tf.train.get_checkpoint_state(weights_dir)
+        # saver.restore(sess, ckpt.model_checkpoint_path)
+        saver.restore(sess, checkpoint_path)
         print("Model Restored")
 
         start_time = time.time()
@@ -142,9 +151,8 @@ if __name__ == "__main__":
         print("testing accuracy: ", accuracy)
         print("End time : %.5ss" % (time.time() - start_time))
 
-        # save as checkpoint
-        checkpoint = True
-        if checkpoint:
-            saver = tf.train.Saver()
-            saver.save(sess, checkpoint_dir)
-            print("done")
+        # single data evaluate
+        prob = sess.run(model.logits, {
+            model.inputs: [x_test[0]],
+        })
+        print("label: %d, prediction: %d" % (np.argmax(y_test[0]), np.argmax(prob[0])))

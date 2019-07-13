@@ -23,5 +23,6 @@
 + If you are looking for an implement by slim, change git branch to "slim_ver" for more detail. Method of both two are similar.  
 
 ## TensorRT with Onnx
++ According to official document the version of tensorflow should be 1.14.
 
 

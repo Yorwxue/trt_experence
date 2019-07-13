@@ -1,4 +1,4 @@
-import importlib
+# from checkpoint to SavedModel
 import time
 import os
 import numpy as np
@@ -17,13 +17,14 @@ def directory_create(directory):
 
 checkpoint_dir = os.path.abspath("./checkpoint/cnn_model")
 print("checkpoint path:", checkpoint_dir)
+checkpoint_path = os.path.join(checkpoint_dir, "model")
 
 
 SavedModel_export_dir = "./SavedModel/cnn_model/"
 directory_create(SavedModel_export_dir)
 summaries_dir = "./SavedModel/cnn_model/tensorboard/"
 directory_create(summaries_dir)
-new_model_version = len(os.listdir(SavedModel_export_dir))+1
+new_model_version = len(os.listdir(SavedModel_export_dir)) - 1
 input_height = 28
 input_width = 28
 
@@ -127,7 +128,7 @@ if __name__ == "__main__":
 
         # model restore
         saver = tf.train.Saver()
-        saver.restore(sess, checkpoint_dir)
+        saver.restore(sess, checkpoint_path)
         print("Model Restored")
 
         start_time = time.time()
@@ -191,7 +192,7 @@ if __name__ == "__main__":
     # tfconfig.gpu_options.per_process_gpu_memory_fraction = 0.3
     with tf.Session(graph=tf.Graph(), config=tfconfig) as sess:
         tf.saved_model.loader.load(sess, [tf.saved_model.SERVING],
-                                   os.path.join(SavedModel_export_dir,  str(len(os.listdir(SavedModel_export_dir)))))
+                                   os.path.join(SavedModel_export_dir,  str(len(os.listdir(SavedModel_export_dir))-2)))
         # warm up
         print("warm up")
         for i in range(5):

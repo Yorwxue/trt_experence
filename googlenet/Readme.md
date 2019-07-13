@@ -1,4 +1,5 @@
 ## Using TensorRT in TensorFlow (TF-TRT)
++ Or you can use tensorflow-onnx as mention in follow [session](# Using tensorflow-onnx)
 + Note that the following example can only be used in "tensorflow<=1.13", due to tf.contrib library is deleted in tensorflow 2.0.
 ### Inference with TF-TRT `SavedModel` workflow:
 + using instructure: create_inference_graph to create trt graph
@@ -61,3 +62,5 @@ for i in trt_engine_ops: print(i)
 merged = tf.summary.merge_all()
 train_writer = tf.summary.FileWriter(summaries_dir,trt_graph)
 ```
+
+## Using tensorflow-onnx
