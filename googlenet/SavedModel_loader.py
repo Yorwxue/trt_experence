@@ -1,24 +1,13 @@
 import importlib
 import time
 import os
-
 import numpy as np
 import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
 import cv2
 import pybase64 as base64
 
-slim = tf.contrib.slim
-from tensorflow.contrib.slim.python.slim.nets.inception_v3 import inception_v3_base, inception_v3, inception_v3_arg_scope
-import skimage
-import skimage.io
-import skimage.transform
-
-# -------------------------
-try:
-    from data.imagenet_classes import *
-except Exception as e:
-    raise Exception(
-        "{} / download the file from: https://github.com/zsdonghao/tensorlayer/tree/master/example/data".format(e))
+from googlenet.nets.cnn_model.CNN_MODEL import cnn_model
 
 
 def directory_create(directory):
@@ -26,63 +15,17 @@ def directory_create(directory):
         os.makedirs(directory)
 
 
-# image size for google-net
-input_size_h = 299
-input_size_w = 299
-pretrained_model_path = "./pretrained/inception_resnet_v2_2016_08_30.ckpt"
-# pretrained_model_path = "./pretrained/inception_v3.ckpt"
+checkpoint_dir = os.path.abspath("./checkpoint/cnn_model")
+print("checkpoint path:", checkpoint_dir)
 
-# checkpoint_path = "./pretrained/checkpoint/inception_resnet_v2/"
-# checkpoint_path = "./pretrained/checkpoint/inception_v3/model.ckpt"
 
-SavedModel_export_dir = "./pretrained/SavedModel/inception_resnet_v2/"
-# SavedModel_export_dir = "./pretrained/SavedModel/inception_v3/"
+SavedModel_export_dir = "./SavedModel/cnn_model/"
 directory_create(SavedModel_export_dir)
-model_version = len(os.listdir(SavedModel_export_dir))
-
-
-def load_image(path):
-    # load image
-    img = skimage.io.imread(path)
-    img = img / 255.0
-    assert (0 <= img).all() and (img <= 1.0).all()
-    # print "Original Image Shape: ", img.shape
-    # we crop image from center
-    short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
-    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
-    # resize to 299, 299
-    resized_img = skimage.transform.resize(crop_img, (input_size_h, input_size_w))
-    return resized_img
-
-
-def crop_image(image):
-    # croped_img = tf.image.resize_image_with_crop_or_pad(image, input_size_h, input_size_w)
-    # resized_img = tf.reshape(croped_img, (input_size_h, input_size_w, 3))
-    shape = tf.shape(image)
-    h = shape[0]
-    w = shape[1]
-    short_edge = tf.minimum(h, w)
-    yy = tf.cast(tf.math.divide(tf.math.subtract(tf.shape(img)[0], short_edge), 2), tf.int32)
-    xx = tf.cast(tf.math.divide(tf.math.subtract(tf.shape(img)[1], short_edge), 2), tf.int32)
-    crop_img = image[yy: yy + short_edge, xx: xx + short_edge]
-    resized_img = tf.image.resize_images(crop_img, (input_size_h, input_size_w))
-    resized_img = tf.reshape(resized_img, (input_size_h, input_size_w, 3))
-    return resized_img
-
-
-def print_prob(prob):
-    synset = class_names
-    # print prob
-    pred = np.argsort(prob)[::-1]
-    # Get top1 label
-    top1 = synset[pred[0]]
-    print("Top1: ", top1, prob[pred[0]])
-    # Get top5 label
-    top5 = [(synset[pred[i]], prob[pred[i]]) for i in range(5)]
-    print("Top5: ", top5)
-    return top1
+summaries_dir = "./SavedModel/cnn_model/tensorboard/"
+directory_create(summaries_dir)
+new_model_version = len(os.listdir(SavedModel_export_dir))+1
+input_height = 28
+input_width = 28
 
 
 def serving_image_decode(image_input):
@@ -92,7 +35,8 @@ def serving_image_decode(image_input):
     image_string = tf.decode_base64(image_string)  # tf-serving will do this automatically
     decoded_image = tf.image.decode_jpeg(image_string, dct_method='INTEGER_ACCURATE')
 
-    reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
+    # reshape_input_tensor = tf.reshape(decoded_image, input_image_size)
+    reshape_input_tensor = tf.reshape(decoded_image, (input_height, input_width, 3))
 
     # rgb to bgr
     bgr_input_tensor = tf.reverse(reshape_input_tensor, axis=[-1])
@@ -101,9 +45,7 @@ def serving_image_decode(image_input):
     input_tensor = tf.cast(bgr_input_tensor, dtype=tf.float32)
 
     # rescale to interval of [0, 1]
-    img_content = tf.math.divide(input_tensor, tf.constant(255.))
-
-    img_input_placeholder = crop_image(img_content)
+    img_input_placeholder = tf.math.divide(input_tensor, tf.constant(255.))
 
     return img_input_placeholder
 
@@ -142,127 +84,131 @@ def serving_request(image_content):
 
 
 if __name__ == "__main__":
-    # test data in github: https://github.com/zsdonghao/tensorlayer/tree/master/example/data
-    # img = load_image("data/dog/img1.jpg")
-    img = cv2.imread("data/dog/img1.jpg")
-    # img_str = image_encode(img)
-    img_str = image_web_saved_encode(img)
-    img_shape = img.shape
+    # preparing dataset
+    # """
+    mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+    x_train = mnist.train.images
+    y_train = mnist.train.labels
+    x_test = mnist.test.images
+    y_test = mnist.test.labels
 
-    # cv2.imwrite("test.jpg", image_web_saved_decode(img_str))
-    # cv2.imwrite("test.jpg", image_decode(img_str))
+    # reshape from 784 to 28*28
+    # x_train = np.reshape(x_train, [x_train.shape[0], 28, 28, 1])
+    x_test = np.reshape(x_test, [x_test.shape[0], 28, 28, 1])
 
-    # batch_input_tensor = tf.placeholder(tf.float32, shape=(None, 299, 299, 3))
+    # base64 encode
+    # x_train = [image_web_saved_encode(np.concatenate([image, image, image], axis=2)*255) for image in list(x_train)]
+    x_test = [image_web_saved_encode(np.concatenate([image, image, image], axis=2)*255) for image in list(x_test)]
+    # """
+
     image_string_list = tf.placeholder(tf.string, shape=[None, ], name='image_strings')
     image_shape_list = tf.placeholder(dtype=tf.int32, shape=[None, 3], name="image_shapes")
     batch_input_tensor = tf.map_fn(serving_image_decode, (image_string_list, image_shape_list), dtype=tf.float32)
-
-    # inception_v3
-    """
-    network = importlib.import_module('models.inception_v3')
-    with slim.arg_scope(inception_v3_arg_scope()):
-        prelogits, end_points = inception_v3(
-                    batch_input_tensor, is_training=False, dropout_keep_prob=1.0,
-                    num_classes=1001, reuse=None)
-
-    probs = tf.nn.softmax(prelogits, name="probs")
-    # """
-
-    # inception_resnet_v2
-    # """
-    network = importlib.import_module('models.inception_resnet_v2')
-    scope = network.inception_resnet_v2_arg_scope(
-        weight_decay=0.0,
-        batch_norm_decay=0.995,
-        batch_norm_epsilon=0.001,
-        activation_fn=tf.nn.relu
-    )
-    with slim.arg_scope(scope):
-        prelogits, _ = network.inception_resnet_v2(
-            batch_input_tensor, is_training=False, dropout_keep_prob=1.0,
-            num_classes=1001, reuse=None)
-
-    probs = tf.nn.softmax(prelogits, name="probs")
-    # """
 
     tfconfig = tf.ConfigProto()
     tfconfig.gpu_options.allow_growth = True  # maybe necessary
     tfconfig.allow_soft_placement = True  # maybe necessary
     sess = tf.InteractiveSession(config=tfconfig)
-    # sess = tf.InteractiveSession()
 
-    # Initialize variables
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
-
-    # model restore
-    saver = tf.train.Saver()
-    saver.restore(sess, pretrained_model_path)
-    print("Model Restored")
+    # build model
+    model = cnn_model(batch_input_tensor, 10)
 
     # forward pass
-    """
-    start_time = time.time()
-    prob = sess.run(probs, feed_dict={
-        image_string_list: [img_str],
-        image_shape_list: [img_shape]
-    })
-    print("End time : %.5ss" % (time.time() - start_time))
-    print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
-    # """
+    forward = True
+    if forward:
+        label_batch = tf.placeholder(tf.float32, shape=(None, 10), name="label_batch")
+        model.build_graph(label_batch)
+
+        # initialize
+        sess.run(tf.global_variables_initializer())
+        running_vars = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope="metrics")
+        running_vars_initializer = tf.variables_initializer(var_list=running_vars)
+        sess.run(running_vars_initializer)
+
+        # model restore
+        saver = tf.train.Saver()
+        saver.restore(sess, checkpoint_dir)
+        print("Model Restored")
+
+        start_time = time.time()
+        cost, accuracy = sess.run([model.cost, model.acc_op], feed_dict={
+            # image_list: x_test,
+            image_string_list: x_test,
+            image_shape_list: [(28, 28, 3)]*len(x_test),
+            model.labels: y_test
+        })
+        print("testing loss: ", cost)
+        print("testing accuracy: ", accuracy)
+        print("End time : %.5ss" % (time.time() - start_time))
 
     # save as SavedModel
-    # """
-    # tf serving configure
-    # define parameters of output model
-    # define output path
-    export_path_base = SavedModel_export_dir
-    export_path = os.path.join(
-        tf.compat.as_bytes(export_path_base),
-        tf.compat.as_bytes(str(model_version)))
-    print('Exporting trained model to', export_path)
-    builder = tf.saved_model.builder.SavedModelBuilder(export_path)
+    SavedModel = True
+    if SavedModel:
+        # tf serving configure
+        # define parameters of output model
+        # define output path
+        export_path_base = SavedModel_export_dir
+        export_path = os.path.join(
+            tf.compat.as_bytes(export_path_base),
+            tf.compat.as_bytes(str(new_model_version)))
+        print('Exporting trained model to', export_path)
+        builder = tf.saved_model.builder.SavedModelBuilder(export_path)
 
-    # Define input tensor info, the definition of input_images is necessary
-    img_tensor_info_input_bytes = tf.saved_model.utils.build_tensor_info(image_string_list)
-    img_shape_tensor_info_input_bytes = tf.saved_model.utils.build_tensor_info(image_shape_list)
+        # Define input tensor info, the definition of input_images is necessary
+        img_tensor_info_input_bytes = tf.saved_model.utils.build_tensor_info(image_string_list)
+        img_shape_tensor_info_input_bytes = tf.saved_model.utils.build_tensor_info(image_shape_list)
 
-    # Define output tensor info, the definition of output_result is necessary
-    probs_tensor_info_output = tf.saved_model.utils.build_tensor_info(probs)
+        # Define output tensor info, the definition of output_result is necessary
+        logits_tensor_info_output = tf.saved_model.utils.build_tensor_info(model.logits)
 
-    # Create signature
-    prediction_signature = (
-        tf.saved_model.signature_def_utils.build_signature_def(
-            inputs={
-                "image_bytes": img_tensor_info_input_bytes,
-                "image_shapes": img_shape_tensor_info_input_bytes
-            },
-            outputs={
-                "probs": probs_tensor_info_output,
-            },
-            method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME))
+        # Create signature
+        prediction_signature = (
+            tf.saved_model.signature_def_utils.build_signature_def(
+                inputs={
+                    "image_bytes": img_tensor_info_input_bytes,
+                    "image_shapes": img_shape_tensor_info_input_bytes
+                },
+                outputs={
+                    "logits": logits_tensor_info_output,
+                },
+                method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME))
 
-    builder.add_meta_graph_and_variables(
-        sess, [tf.saved_model.SERVING],
-        signature_def_map={
-            "googlenet": prediction_signature})
+        builder.add_meta_graph_and_variables(
+            sess, [tf.saved_model.SERVING],
+            signature_def_map={
+                "cnn_model": prediction_signature})
 
-    # export model
-    builder.save(as_text=True)
-    print('Done exporting!')
-    # """
+        # export model
+        builder.save(as_text=True)
+        print('Done exporting!')
 
     # load SavedModel
     # """
+    test_idx = 0
     tfconfig = tf.ConfigProto()
     tfconfig.gpu_options.allow_growth = True  # maybe necessary
     tfconfig.allow_soft_placement = True  # maybe necessary
+    # tfconfig.gpu_options.per_process_gpu_memory_fraction = 0.3
     with tf.Session(graph=tf.Graph(), config=tfconfig) as sess:
         tf.saved_model.loader.load(sess, [tf.saved_model.SERVING],
-                                   os.path.join(SavedModel_export_dir, max(os.listdir(SavedModel_export_dir))))
-        prob = sess.run("probs:0", {
-            "image_strings:0": [img_str],
-            "image_shapes:0": [img_shape]
+                                   os.path.join(SavedModel_export_dir,  str(len(os.listdir(SavedModel_export_dir)))))
+        # warm up
+        print("warm up")
+        for i in range(5):
+            prob = sess.run("logits:0", {
+                "image_strings:0": [x_test[test_idx]],
+                "image_shapes:0": [(28, 28, 3)]
+            })
+        print("counter start")
+        START_TIME = time.time()
+        prob = sess.run("logits:0", {
+            "image_strings:0": [x_test[test_idx]],
+            "image_shapes:0": [(28, 28, 3)]
         })
-        print_prob(prob[0][1:])  # Note : as it have 1001 outputs, the 1st output is nothing
+        print("label: %d, prediction: %d" % (np.argmax(y_test[test_idx]), np.argmax(prob[0])))
+        print("spent %f seconds" % (time.time()-START_TIME))
     # """
+
+    # write graph
+    merged = tf.summary.merge_all()
+    train_writer = tf.summary.FileWriter(summaries_dir, tf.get_default_graph())

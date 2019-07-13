@@ -2,8 +2,16 @@
 venv/
 *__pycache__*
 *pretrained/
+<<<<<<< HEAD
 *MNIST_data/
 *SavedModel/
 *checkpoint/
 *trt_model/
 *weights/
+=======
+MNIST_data/
+weights/
+checkpoint/
+SavedModel/
+trt_model/
+>>>>>>> tf1.13
