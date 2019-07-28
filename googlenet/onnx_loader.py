@@ -5,7 +5,7 @@ import onnxruntime as rt
 import time
 
 
-onnx_model_dir = "./googlenet/onnx_model/cnn_model"
+onnx_model_dir = os.path.abspath(os.path.join(__file__, "..", "onnx_model", "cnn_model"))
 onnx_model_dir = os.path.join(onnx_model_dir, str(len(os.listdir(onnx_model_dir))-2))
 onnx_model_path = os.path.join(onnx_model_dir, "model.onnx")
 

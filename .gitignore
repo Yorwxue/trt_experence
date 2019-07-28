@@ -10,4 +10,6 @@ venv/
 *trt_model/
 *frozen_model/
 *onnx_model/
-
+*torch_model
+*onnx_trt_model/
+*torch_onnx_model/

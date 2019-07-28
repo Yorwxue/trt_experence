@@ -1,6 +1,21 @@
+# TensorRT with Tensorflow
++ Because of library: "tensorflow.contrib.tensorrt" is deleted at tensorflow 2.0, the convert method may be different.
++ Note that TensorRT==5.1.5 may not support tensorflow 1.14, even thought it still has library: "tensorflow.contrib.tensorrt"
+#### Tensorflow >= 2.0
++ Seems not supported now .. 2019/7/12
+
+#### Tensorflow <= 1.13
++ If you are looking for an implement by slim, change git branch to "slim_ver" for more detail. Method of both two are similar.
+
+#### TensorRT with Onnx
++ According to official document the version of tensorflow should be 1.14.
+
+========================================================================================================================
+
 ## Using TensorRT in TensorFlow (TF-TRT)
-+ Or you can use tensorflow-onnx as mention in follow [session](# Using tensorflow-onnx)
++ You can also use tensorflow-onnx as mention in following [session](# Using tensorflow-onnx)
 + Note that the following example can only be used in "tensorflow<=1.13", due to tf.contrib library is deleted in tensorflow 2.0.
+
 ### Inference with TF-TRT `SavedModel` workflow:
 + using instructure: create_inference_graph to create trt graph
 ``` python
@@ -49,12 +64,14 @@ with graph.as_default():
 
 ## Speedup
 + Note that trt graph need to warmup.
+
 ### Show How many Nodes Are Convert to trt-op
 ``` python
 trt_engine_ops = [n.name for n in trt_graph.node if str(n.op)=='TRTEngineOp']
 print("Number of trt op: %d" % len(trt_engine_ops))
 for i in trt_engine_ops: print(i)
 ```
+
 ### Using TensorBoard to Visualize Optimized Graphs
 [TensorRT information](https://medium.com/tensorflow/speed-up-tensorflow-inference-on-gpus-with-tensorrt-13b49f3db3fa)
 [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard)
@@ -62,6 +79,8 @@ for i in trt_engine_ops: print(i)
 merged = tf.summary.merge_all()
 train_writer = tf.summary.FileWriter(summaries_dir,trt_graph)
 ```
+
+========================================================================================================================
 
 ## Using tensorflow-onnx
 + Note that tf2onnx can only convert frozen graph to onnx
