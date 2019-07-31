@@ -1,6 +1,6 @@
 # Apply pytorch to Nvidia-TensorRT-Inference-Server
 
-## Onnx with Pytorch
+## Convert Pytorch to TensorRT via Onnx
 + We using pytorch 0.4.1 as example
 + If you using pytorch >= 1.10, you can following there [steps](https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html).
 
@@ -21,8 +21,12 @@ output = torch_onnx.export(YOUR_MODEL,
                           verbose=False)
 ```
 
-### Optimize Pytorch Model
-+ [steps](https://github.com/onnx/onnx/blob/master/docs/PythonAPIOverview.md#converting-opset-version-of-an-onnx-model)
++ [Optimize Pytorch Model](https://github.com/onnx/onnx/blob/master/docs/PythonAPIOverview.md#converting-opset-version-of-an-onnx-model)
 
 ### Running with ONNXRUNTIME
 
+### Conver Onnx to TensorRT
+
+## Convert Pytorch to TensorRT Directory
++ [torch2trt](https://github.com/NVIDIA-AI-IOT/torch2trt)
++ May only work in pytorch >= 1.1.0

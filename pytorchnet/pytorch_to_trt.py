@@ -1,11 +1,12 @@
 # torch2trt can only used in global environment now
+# may only work for pytorch >= 1.1.0
 import os
 import numpy as np
 from tqdm import tqdm
 import torch
 import torch.nn as nn
 from torch.utils.data.dataloader import DataLoader
-from torch2trt import torch2trt
+from torch2trt import torch2trt, TRTModule
 
 from pytorchnet.dataloader import ExampleData
 
@@ -106,6 +107,10 @@ ex_data = torch.ones((1, *input_shape)).cuda()
 
 # convert to TensorRT feeding sample data as input
 model_trt = torch2trt(model, [ex_data])
+
+# # only for pytorch >= 1.1.0
+# model_trt = TRTModule()
+# model_trt.load_state_dict(model)
 
 # test
 np.random.seed(19)

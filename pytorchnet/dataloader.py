@@ -24,10 +24,13 @@ class ExampleData(Dataset):
         sample = {'input': self.preprocess(data), 'label': label}
         return sample
 
-    def gen_data(self, num, data_shape):
-        np.random.seed(19)
+    def gen_data(self, num, data_shape, seed=19):
+        np.random.seed(seed)
         data = np.random.randn(num, *data_shape)
+        # data = np.random.randint(1, 5, (num, data_shape))
+        np.random.seed(seed)
         label = np.random.randint(0, 3, num)
+        # data = np.zeros((num, *data_shape))
         return data, label
 
     def preprocess(self, data):

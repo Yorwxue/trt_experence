@@ -5,10 +5,11 @@ import torch.nn as nn
 from torch.utils.data.dataloader import DataLoader
 from torch.autograd import Variable
 import torch.onnx as torch_onnx
+import onnx
 
 from pytorchnet.dataloader import ExampleData
 
-
+torch.cuda.manual_seed(19)
 class TestNet(torch.nn.Module):
     def __init__(self):
         super(TestNet, self).__init__()
@@ -26,11 +27,14 @@ class TestNet(torch.nn.Module):
         x = self.conv2_drop(x)
         x = torch.nn.functional.max_pool2d(x, (2, 2))
         x = torch.nn.functional.relu(x)
-        x = x.view(x.size()[0], -1)
+        # x = x.view(x.size()[0], -1)  # this will cause an error in conversion from pytorch to onnx
+        x = x.view([int(x.size()[0]), -1])  # temporary solution
+        # x = x.flatten(1)  #
         x = torch.nn.functional.relu(self.fc1(x))
+        x = torch.nn.functional.relu(x)
         x = torch.nn.functional.dropout(x, training=self.training)
         x = self.fc2(x)
-        return torch.nn.functional.log_softmax(x, dim=1)
+        return torch.nn.functional.softmax(x, dim=1)
 
 
 class Model(nn.Module):
@@ -58,7 +62,7 @@ if not os.path.exists(onnx_model_dir):
 # data parameter
 input_shape = (3, 100, 100)
 batch_size = 2
-num_workers = 1
+num_workers = 0
 num_of_data = batch_size * 5
 
 # using cuda
@@ -72,8 +76,8 @@ dataloader = DataLoader(example_dataloader, batch_size=batch_size, shuffle=False
 model = Model()
 
 # load model
-if os.path.exists(torch_model_path):
-    model.model = torch.load(torch_model_path)
+# if os.path.exists(torch_model_path):
+#     model.model = torch.load(torch_model_path)
 
 # device
 model.to(device)
@@ -86,7 +90,6 @@ for batch_idx, data in enumerate(tqdm(dataloader), 1):
     x = data["input"]
     y = data["label"]
     x, y = x.to(device, dtype=torch.float32), y.to(device)
-    print(x[0, 0:2, 0:2, 0])
 
     # forward
     output = model(x)
@@ -94,17 +97,29 @@ for batch_idx, data in enumerate(tqdm(dataloader), 1):
 
     # get the index of the max log-probability
     for idx in range(list(output.shape)[0]):
-        pred = output[idx].max(0)
-        print("pred_%d: " % idx, pred)
+        # pred = output[idx].max(0)
+        pred = output[idx]
+        print(x[idx, 0, :2, :2])
+        print("pred_%d: " % idx, pred[idx])
+        print("==========================================================")
 
 # save model
-# torch.save(model, torch_model_path)
+torch.save(model, torch_model_path)
 
 # Export the model to an ONNX file
+if os.path.exists(onnx_model_path):
+    os.system("rm %s" % onnx_model_path)
 model.to("cpu")  # It's necessary!! torch_onnx CANNOT export model in cuda to onnx
 dummy_input = Variable(torch.randn(1, *input_shape))
 output = torch_onnx.export(model,
-                          dummy_input,
-                          onnx_model_path,
-                          verbose=False)
+                           dummy_input,
+                           onnx_model_path,
+                           verbose=True)
 print("Export of torch_model.onnx complete!")
+
+print("====================================")
+print("Architecture in onnx:")
+onnx_model = onnx.load(onnx_model_path)
+onnx.checker.check_model(onnx_model)
+arch = onnx.helper.printable_graph(onnx_model.graph)
+print(arch)
