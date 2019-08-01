@@ -10,31 +10,37 @@ import onnx
 from pytorchnet.dataloader import ExampleData
 
 torch.cuda.manual_seed(19)
+
+
 class TestNet(torch.nn.Module):
     def __init__(self):
         super(TestNet, self).__init__()
-        self.conv1 = torch.nn.Conv2d(in_channels=3, out_channels=5, kernel_size=(3, 3))
-        self.conv2 = torch.nn.Conv2d(5, 2, (3, 3))
-        self.conv2_drop = torch.nn.Dropout2d()
-        self.fc1 = torch.nn.Linear(1058, 100)
-        self.fc2 = torch.nn.Linear(100, 3)
+        self.conv_net = torch.nn.Sequential()
+        self.conv_net.add_module("conv2d_1", torch.nn.Conv2d(in_channels=3, out_channels=5, kernel_size=(3, 3)))
+        self.conv_net.add_module("conv2d_1_max_pool2d", torch.nn.MaxPool2d(kernel_size=(2, 2)))
+        self.conv_net.add_module("conv2d_1_relu", torch.nn.ReLU())
+        self.conv_net.add_module("conv2d_2", torch.nn.Conv2d(5, 2, (3, 3)))
+        self.conv_net.add_module("conv2d_2_dropout", torch.nn.Dropout2d())
+        self.conv_net.add_module("conv2d_2_max_pool2d", torch.nn.MaxPool2d(kernel_size=(2, 2)))
+        self.conv_net.add_module("conv2d_2_relu", torch.nn.ReLU())
+        # self.add_module("conv2d_2_flatten", torch.nn.)
+        self.fc_net = torch.nn.Sequential()
+        self.fc_net.add_module("fc1", torch.nn.Linear(1058, 100))
+        self.fc_net.add_module("fc1_dropout", torch.nn.Dropout2d())
+        self.fc_net.add_module("fc2", torch.nn.Linear(100, 3))
+        self.fc_net.add_module("softmax", torch.nn.Softmax())
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = torch.nn.functional.max_pool2d(x, (2, 2))
-        x = torch.nn.functional.relu(x)
-        x = self.conv2(x)
-        x = self.conv2_drop(x)
-        x = torch.nn.functional.max_pool2d(x, (2, 2))
-        x = torch.nn.functional.relu(x)
+
+        x = x.type(torch.float32)
+        x = torch.div(x, 255.)
+        x = x.permute(0, 3, 1, 2)
+        x = self.conv_net(x)
         # x = x.view(x.size()[0], -1)  # this will cause an error in conversion from pytorch to onnx
         x = x.view([int(x.size()[0]), -1])  # temporary solution
         # x = x.flatten(1)  #
-        x = torch.nn.functional.relu(self.fc1(x))
-        x = torch.nn.functional.relu(x)
-        x = torch.nn.functional.dropout(x, training=self.training)
-        x = self.fc2(x)
-        return torch.nn.functional.softmax(x, dim=1)
+        x = self.fc_net(x)
+        return x
 
 
 class Model(nn.Module):
@@ -60,7 +66,7 @@ if not os.path.exists(onnx_model_dir):
     os.makedirs(onnx_model_dir)
 
 # data parameter
-input_shape = (3, 100, 100)
+input_shape = (100, 100, 3)
 batch_size = 2
 num_workers = 0
 num_of_data = batch_size * 5
@@ -89,7 +95,7 @@ model.eval()
 for batch_idx, data in enumerate(tqdm(dataloader), 1):
     x = data["input"]
     y = data["label"]
-    x, y = x.to(device, dtype=torch.float32), y.to(device)
+    x, y = x.to(device, dtype=torch.int32), y.to(device)
 
     # forward
     output = model(x)
@@ -114,6 +120,8 @@ dummy_input = Variable(torch.randn(1, *input_shape))
 output = torch_onnx.export(model,
                            dummy_input,
                            onnx_model_path,
+                           input_names=["input_1"],
+                           output_names=["output_1"],
                            verbose=True)
 print("Export of torch_model.onnx complete!")
 

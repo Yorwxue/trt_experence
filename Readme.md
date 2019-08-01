@@ -83,10 +83,79 @@ cuda.memcpy_dtoh(h_output, d_output)
 
 ### Onnx-TensorRT
 + [onnx-tensorrt](https://github.com/onnx/onnx-tensorrt)
++ TODO
 
 ## Apply Nvidia-TensorRT-Inference-Server
 + [official doc.](https://docs.nvidia.com/deeplearning/sdk/tensorrt-inference-server-guide/docs/quickstart.html)
-+ Introduction can be found in "trt_experiment/trt_inference_server"
++ For some model it's necessary to create an model script
+### Create Model Script
++ [Model Script](https://docs.nvidia.com/deeplearning/sdk/tensorrt-inference-server-guide/docs/model_repository.html#tensorrt-models) is necessary for inference-server.
+```
+name: "Model_NAME"
+platform: "tensorrt_plan"
+max_batch_size: 10
+input [
+  {
+    name: "INPUT_NAME"
+    data_type: TYPE_FP32
+    format: FORMAT_NCHW
+    dims: [3, 100, 100]
+  }
+]
+output [
+  {
+    name: "OUTPUT_NAME"
+    data_type: TYPE_FP32
+    dims: [3]
+  }
+]
+instance_group [
+  {
+    kind: KIND_GPU,
+    count: 1
+  }
+]
+```
++ If your tensorrt model convert along "pytorch -> onnx -> tensorrt", Parameter: INPUT_NAME and OUTPUT_NAME need to be marked when convert pytorch to onnx.
+
+### Inference Server
++ Note that you don't need to encode image as base64 string, you just need to convert to bytes, and send request to server.
+
+#### Start Server
+```bash
+$ NV_GPU=0  docker run --runtime=nvidia --rm --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 -p8000:8000 -p8001:8001 -p8002:8002 -v /mnt/hdd1/trt_experiment/onnx_trt_model/pytorchnet/:/models nvcr.io/nvidia/tensorrtserver:19.06-py3 trtserver --model-store=/models
+```
+
+#### Check Server
+```bash
+$ curl localhost:8000/api/status
+```
+
+#### Inference
+##### By Python Code:
+```python
+import requests
+import cv2
+
+image = cv2.imread("/PATH/TO/YOUR/IMAGE")
+array_img = image.astype("float32")
+bytes_img = array_img.tobytes()
+batch_size = 1
+
+headers = {
+    "NV-InferRequest": 'batch_size: %d input { name: "input_1" dims: 100 dims: 100 dims: 3} output { name: "output_1"  cls { count: 3 } }' % batch_size,
+}
+url = "http://localhost:8000/api/infer/Model_NAME"
+response = requests.request("POST", url, data=bytes_img, headers=headers)
+```
++ If you want to inference batch-by-batch, you can concatenate two bytes_image, and set batch_size to YOUR_BATCH_SIZE.
+```python
+bytes_imgs = bytes_img + bytes_img
+```
+
+##### By Curl:
++ [TODO](https://github.com/NVIDIA/tensorrt-inference-server/issues/280)
+
 
 ## ONNX Runtime Server
 + TODO

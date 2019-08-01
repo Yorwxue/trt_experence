@@ -26,7 +26,7 @@ class ExampleData(Dataset):
 
     def gen_data(self, num, data_shape, seed=19):
         np.random.seed(seed)
-        data = np.random.randn(num, *data_shape)
+        data = np.random.randint(0, 255, (num, *data_shape), dtype=np.int32)
         # data = np.random.randint(1, 5, (num, data_shape))
         np.random.seed(seed)
         label = np.random.randint(0, 3, num)

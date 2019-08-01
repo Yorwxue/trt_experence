@@ -8,7 +8,7 @@
 + [How to convert pytorch model to onnx](https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html)
 + [pytorch to mxnet/CNTK via onnx](https://docs.aws.amazon.com/dlami/latest/devguide/tutorial-onnx-pytorch-mxnet.html)
 + Note that torch_onnx CANNOT export model in cuda to onnx, so it's necessary to do ```model.to("cpu")```
-
++ Remember to mark the name of input and output used in config.pbtxt for TensorRT-Inference-Server
 ```python
 from torch.autograd import Variable
 import torch.onnx as torch_onnx
@@ -18,6 +18,8 @@ dummy_input = Variable(torch.randn(1, *INPUT_SHAPE))
 output = torch_onnx.export(YOUR_MODEL,
                           dummy_input,
                           onnx_model_path,
+                          input_names=["input_1"],
+                          output_names=["output_1"],
                           verbose=False)
 ```
 

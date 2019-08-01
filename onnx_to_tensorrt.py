@@ -7,10 +7,10 @@ import pycuda.autoinit
 
 onnx_model_dir = os.path.abspath(os.path.join(__file__, "..", "pytorchnet", "torch_onnx_model"))
 onnx_file_path = os.path.join(onnx_model_dir, "torch_onnx_model.onnx")
-onnx_trt_model_dir = os.path.abspath(os.path.join(__file__, "..", "onnx_trt_model", "pytorchnet", "test_model"))
+onnx_trt_model_dir = os.path.abspath(os.path.join(__file__, "..", "onnx_trt_model", "pytorchnet", "test_model", "0"))
 if not os.path.exists(onnx_trt_model_dir):
     os.makedirs(onnx_trt_model_dir)
-engine_file_path = os.path.join(onnx_trt_model_dir, "test_model.trt")
+engine_file_path = os.path.join(onnx_trt_model_dir, "model.plan")
 
 if os.path.exists(engine_file_path):
     os.system("rm %s" % engine_file_path)
@@ -77,7 +77,7 @@ def get_engine(onnx_file_path, engine_file_path=""):
 
 
 # model parameter
-input_shape = (3, 100, 100)
+input_shape = (100, 100, 3)
 num_of_data = 10
 batch_size = 2
 # num_class = 30000
@@ -86,7 +86,7 @@ num_class = 5
 # preparing data
 seed = 19
 np.random.seed(seed)
-x = np.random.randn(num_of_data, *input_shape)
+x = np.random.randint(0, 255, (num_of_data, *input_shape), dtype=np.int32)
 # x = np.random.randint(1, 5, (num_of_data, input_shape)) * 1.
 x = np.asarray(x, dtype=np.float32)
 # x = np.zeros((num_of_data, *input_shape))
