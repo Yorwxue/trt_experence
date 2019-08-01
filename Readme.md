@@ -89,6 +89,14 @@ cuda.memcpy_dtoh(h_output, d_output)
 + [official doc.](https://docs.nvidia.com/deeplearning/sdk/tensorrt-inference-server-guide/docs/quickstart.html)
 + For some model it's necessary to create an model script
 ### Create Model Script
++ A minimal model repository for a single TensorRT model would look like:
+```
+models/
+  <model-name>/
+    config.pbtxt
+    1/
+      model.plan
+```
 + [Model Script](https://docs.nvidia.com/deeplearning/sdk/tensorrt-inference-server-guide/docs/model_repository.html#tensorrt-models) is necessary for inference-server.
 ```
 name: "Model_NAME"
